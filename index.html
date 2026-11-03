@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light}html{padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}body{margin:0;font-size:14px}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>واکنش بازار</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700;800&display=swap">
+<style>
+/* Layout: brand band on top, next-event strip, filters, day-grouped news rows; click opens a side panel (wide) or bottom sheet (phone) with per-asset reaction. */
+:root{
+  --c-red:#C4421A; --c-orange:#F98F45; --c-mist:#97CECC; --c-teal:#12908E; --c-forest:#16594A;
+  --bg:#F0F6F5; --surface:#FFFFFF; --surface-2:#E4F0EF; --line:#CBE0DE;
+  --fg:#10302B; --fg-dim:#4A6A65; --accent:#12908E; --accent-text:#0D6F6C; --on-accent:#FFFFFF;
+  --up:#0D7F7C; --down:#C4421A; --head-bg:#16594A; --head-fg:#EAF6F5; --head-dim:#A9D3CF;
+  --shadow:0 10px 30px rgba(16,48,43,.18); --scrim:rgba(8,28,25,.45);
+  --font:"Vazirmatn",system-ui,"Segoe UI",Tahoma,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0A1A18; --surface:#112926; --surface-2:#173532; --line:#264844;
+    --fg:#E5F3F1; --fg-dim:#97B6B2; --accent:#97CECC; --accent-text:#97CECC; --on-accent:#0A1A18;
+    --up:#4FCBC7; --down:#F0693F; --head-bg:#0E3A32; --head-fg:#E5F3F1; --head-dim:#8FBDB8;
+    --shadow:0 10px 30px rgba(0,0,0,.5); --scrim:rgba(0,0,0,.6); color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0A1A18; --surface:#112926; --surface-2:#173532; --line:#264844;
+  --fg:#E5F3F1; --fg-dim:#97B6B2; --accent:#97CECC; --accent-text:#97CECC; --on-accent:#0A1A18;
+  --up:#4FCBC7; --down:#F0693F; --head-bg:#0E3A32; --head-fg:#E5F3F1; --head-dim:#8FBDB8;
+  --shadow:0 10px 30px rgba(0,0,0,.5); --scrim:rgba(0,0,0,.6); color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);line-height:1.7;font-size:15px}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:3px solid var(--c-orange);outline-offset:2px}
+.num{direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums;display:inline-block}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--head-bg);z-index:10}
+
+.band{background:var(--head-bg);color:var(--head-fg)}
+.in{max-width:980px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.band .in{padding-block:18px 20px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between}
+.brand{display:flex;gap:12px;align-items:center;min-width:0}
+.brand svg{flex:none}
+.brand h1{margin:0;font-size:1.55rem;font-weight:800;line-height:1.2;text-wrap:balance}
+.brand p{margin:2px 0 0;color:var(--head-dim);font-size:.85rem}
+.tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;background:rgba(255,255,255,.1);border-radius:10px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;padding:5px 12px;border-radius:8px;font-size:.82rem;color:var(--head-dim);font-weight:500}
+.seg button[aria-pressed="true"]{background:var(--c-teal);color:#fff;font-weight:700}
+.ico{border:1px solid rgba(255,255,255,.28);background:transparent;color:var(--head-fg);border-radius:10px;padding:6px 12px;font-size:.82rem;display:inline-flex;gap:6px;align-items:center}
+.ico:hover{background:rgba(255,255,255,.1)}
+.ico.spin svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(-360deg)}}
+
+main{padding-block:16px 40px;display:grid;gap:14px}
+.status{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:.8rem;color:var(--fg-dim)}
+.chip{display:inline-flex;gap:6px;align-items:center;padding:3px 10px;border-radius:99px;background:var(--surface-2);color:var(--fg);font-weight:500;font-size:.78rem}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--c-teal);display:inline-block}
+.chip.sample i{background:var(--c-orange)}
+.note{background:var(--surface);border:1px solid var(--line);border-inline-start:4px solid var(--c-orange);border-radius:10px;padding:10px 14px;font-size:.85rem;color:var(--fg-dim)}
+
+.next{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;width:100%;text-align:start;background:var(--c-forest);color:#EAF6F5;border:0;border-radius:14px;padding:14px 16px}
+.next[hidden]{display:none}
+.next small{color:#A9D3CF;font-size:.78rem;display:block}
+.next b{font-size:1.05rem;font-weight:700}
+.next .cd{font-weight:800;font-size:1.15rem;color:#F9B27B;white-space:nowrap}
+
+.filters{display:grid;gap:10px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pills{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;max-width:100%;scrollbar-width:thin}
+.pill{flex:none;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:5px 13px;border-radius:99px;font-size:.84rem;font-weight:500}
+.pill[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:700}
+.pill .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-inline-end:6px;vertical-align:baseline}
+.lbl{font-size:.78rem;color:var(--fg-dim);min-width:3.2rem}
+
+.day{display:grid;gap:8px}
+.day h2{margin:14px 0 0;font-size:.95rem;font-weight:700;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.day h2 small{color:var(--fg-dim);font-weight:400;font-size:.78rem}
+.today{background:var(--c-orange);color:#3A1A06;border-radius:6px;padding:0 8px;font-size:.72rem;font-weight:700}
+.ev{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;align-items:start;width:100%;text-align:start;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;position:relative}
+.ev::before{content:"";position:absolute;inset-block:10px;inset-inline-start:0;width:4px;border-radius:4px;background:var(--imp)}
+.ev.High{--imp:var(--c-red)} .ev.Medium{--imp:var(--c-orange)}
+.ev:hover{border-color:var(--accent)}
+.ev.past{opacity:.62}
+.ev .t{grid-row:1/3;display:grid;gap:2px;justify-items:center;min-width:3.6rem;padding-inline-start:6px}
+.ev .t b{font-size:1.02rem;font-weight:700}
+.cur{font-size:.72rem;font-weight:800;letter-spacing:.04em;background:var(--surface-2);border-radius:6px;padding:0 8px;direction:ltr}
+.ev h3{margin:0;font-size:1rem;font-weight:700;line-height:1.5}
+.ev h3 small{display:block;font-weight:400;color:var(--fg-dim);font-size:.74rem;direction:ltr;text-align:start;unicode-bidi:plaintext}
+.ev p{margin:0;color:var(--fg-dim);font-size:.86rem;line-height:1.65}
+.meta{display:flex;gap:14px;flex-wrap:wrap;font-size:.78rem;color:var(--fg-dim);margin-top:4px}
+.meta span b{color:var(--fg);font-weight:700}
+.tag{font-size:.7rem;font-weight:700;border-radius:6px;padding:0 7px;color:#fff;background:var(--imp);margin-inline-start:8px;vertical-align:middle}
+.ev.Medium .tag{color:#3A1A06}
+.empty{padding:32px 12px;text-align:center;color:var(--fg-dim)}
+footer.in{padding-block:6px 40px;font-size:.78rem;color:var(--fg-dim)}
+
+.scrim{position:fixed;inset:0;background:var(--scrim);z-index:20;opacity:0;transition:opacity .2s}
+.scrim.on{opacity:1}
+.sheet{position:fixed;z-index:21;background:var(--bg);color:var(--fg);box-shadow:var(--shadow);overflow-y:auto;overscroll-behavior:contain;
+  left:0;right:0;bottom:0;max-height:90vh;max-height:90dvh;border-radius:20px 20px 0 0;
+  padding:18px max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  transform:translateY(100%);transition:transform .25s ease}
+.sheet.on{transform:none}
+@media (min-width:860px){
+  .sheet{left:0;right:auto;top:0;bottom:0;max-height:none;width:460px;border-radius:0 20px 20px 0;
+    padding-top:calc(20px + env(safe-area-inset-top,0px));transform:translateX(-100%)}
+}
+.sh-top{display:flex;gap:12px;justify-content:space-between;align-items:flex-start}
+.sh-top h2{margin:0;font-size:1.25rem;font-weight:800;line-height:1.45;text-wrap:balance}
+.sh-top small{display:block;direction:ltr;text-align:start;color:var(--fg-dim);font-weight:400;font-size:.78rem;unicode-bidi:plaintext}
+.close{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:4px 12px;font-size:.84rem}
+.sh-sec{margin-top:16px;display:grid;gap:8px}
+.sh-sec h4{margin:0;font-size:.84rem;color:var(--accent-text);font-weight:700}
+.sh-sec p{margin:0;font-size:.9rem}
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kv div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0}
+.kv small{display:block;color:var(--fg-dim);font-size:.72rem}
+.kv b{font-size:1rem}
+.callout{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:.86rem}
+.sc{display:flex;gap:6px;flex-wrap:wrap}
+.sc button{flex:1 1 150px;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 10px;font-size:.84rem;font-weight:500}
+.sc button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:700}
+.assets{display:grid;gap:6px}
+.as{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 12px;display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center}
+.as b{font-weight:700;font-size:.92rem}
+.as b small{color:var(--fg-dim);font-weight:400;margin-inline-start:6px;direction:ltr;display:inline-block;font-size:.72rem}
+.dir{font-weight:700;font-size:.84rem;white-space:nowrap}
+.dir.up{color:var(--up)} .dir.down{color:var(--down)} .dir.flat{color:var(--fg-dim)}
+.rng{font-size:.78rem;color:var(--fg-dim)}
+.bar{display:flex;gap:3px;justify-content:flex-end}
+.bar i{width:16px;height:6px;border-radius:3px;background:var(--surface-2)}
+.bar.up i.f{background:var(--up)} .bar.down i.f{background:var(--down)}
+.fine{font-size:.74rem;color:var(--fg-dim)}
+@media (prefers-reduced-motion:reduce){.sheet,.scrim{transition:none}.ico.spin svg{animation:none}}
+</style></head><body>
+
+<div id="app" dir="rtl" lang="fa">
+  <div class="band"><div class="in">
+    <div class="brand">
+      <svg width="42" height="42" viewBox="0 0 42 42" aria-hidden="true"><rect width="42" height="42" rx="11" fill="#12908E"/><path d="M6 23h8l4-11 6 20 4-13 2 4h6" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="35" cy="23" r="2.6" fill="#F98F45"/></svg>
+      <div><h1>واکنش بازار</h1><p>اخبار پرتاثیر هفته و اثر احتمالی آن‌ها روی فارکس، طلا، نقره، نفت و بیت‌کوین</p></div>
+    </div>
+    <div class="tools">
+      <div class="seg" role="group" aria-label="حالت نمایش" id="themeSeg">
+        <button type="button" data-m="light" aria-pressed="false">روز</button>
+        <button type="button" data-m="dark" aria-pressed="false">شب</button>
+        <button type="button" data-m="auto" aria-pressed="true">خودکار</button>
+      </div>
+      <button type="button" class="ico" id="refresh"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>به‌روزرسانی</button>
+    </div>
+  </div></div>
+
+  <main class="in">
+    <div class="status" id="status" aria-live="polite"></div>
+    <div class="note" id="sampleNote" hidden>اتصال به فید زنده برقرار نشد، پس داده نمونه نمایش داده می‌شود. این رویدادها واقعی نیستند. چند لحظه بعد دکمه «به‌روزرسانی» را بزن یا ابزار را مستقیم در مرورگر گوشی باز کن.</div>
+    <button type="button" class="next" id="next" hidden></button>
+    <section class="filters" aria-label="فیلتر">
+      <div class="row"><span class="lbl">اهمیت</span><div class="pills" id="fImpact"></div></div>
+      <div class="row"><span class="lbl">ارز</span><div class="pills" id="fCur"></div></div>
+      <div class="row"><span class="lbl">بازه</span><div class="pills" id="fWeek"></div></div>
+    </section>
+    <section id="list" aria-label="رویدادها"></section>
+  </main>
+  <footer class="in">این ابزار توصیه معاملاتی نیست. بازه‌های حرکت قیمت تخمینی و بر پایه رفتار معمول هر نوع رویداد است، نه داده لحظه‌ای. منبع تقویم: فید عمومی Forex Factory.</footer>
+
+  <div class="scrim" id="scrim" hidden></div>
+  <aside class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shTitle" hidden></aside>
+</div>
+
+<script>
+(function(){
+"use strict";
+var $=function(s,r){return (r||document).querySelector(s)};
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function fa(n){return Number(n).toLocaleString("fa-IR")}
+function store(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}}
+
+/* ---------- theme ---------- */
+var root=document.documentElement;
+function setTheme(m){
+  if(m==="light"||m==="dark")root.setAttribute("data-theme",m);else root.removeAttribute("data-theme");
+  var bs=document.querySelectorAll("#themeSeg button");
+  for(var i=0;i<bs.length;i++)bs[i].setAttribute("aria-pressed",bs[i].getAttribute("data-m")===m?"true":"false");
+  store("vb_theme",m);
+}
+$("#themeSeg").addEventListener("click",function(e){var b=e.target.closest("button");if(b)setTheme(b.getAttribute("data-m"))});
+setTheme(store("vb_theme")||"auto");
+
+/* ---------- reference data ---------- */
+var CURS=["USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD","CNY"];
+var ASSETS=[
+ {id:"EURUSD",fa:"یورو/دلار",base:15,unit:"پیپ",dec:0},
+ {id:"GBPUSD",fa:"پوند/دلار",base:18,unit:"پیپ",dec:0},
+ {id:"USDJPY",fa:"دلار/ین",base:20,unit:"پیپ",dec:0},
+ {id:"USDCHF",fa:"دلار/فرانک",base:15,unit:"پیپ",dec:0},
+ {id:"AUDUSD",fa:"دلار استرالیا/دلار",base:12,unit:"پیپ",dec:0},
+ {id:"USDCAD",fa:"دلار/دلار کانادا",base:14,unit:"پیپ",dec:0},
+ {id:"NZDUSD",fa:"دلار نیوزیلند/دلار",base:12,unit:"پیپ",dec:0},
+ {id:"XAUUSD",fa:"طلا (اونس)",base:6,unit:"دلار",dec:0},
+ {id:"XAGUSD",fa:"نقره (اونس)",base:0.12,unit:"دلار",dec:2},
+ {id:"WTI",fa:"نفت خام",base:0.5,unit:"دلار",dec:1},
+ {id:"BTCUSD",fa:"بیت‌کوین",base:0.6,unit:"درصد",dec:1}
+];
+/* sens[cur][asset]: effect on the asset when that currency's news is bullish for the currency */
+var SENS={
+ USD:{EURUSD:-.8,GBPUSD:-.7,USDJPY:.8,USDCHF:.7,AUDUSD:-.7,USDCAD:.6,NZDUSD:-.7,XAUUSD:-.8,XAGUSD:-.7,WTI:-.3,BTCUSD:-.4},
+ EUR:{EURUSD:.9,GBPUSD:.2,USDJPY:-.1,USDCHF:-.4,AUDUSD:.1,USDCAD:-.1,NZDUSD:.1,XAUUSD:.3,XAGUSD:.2,WTI:.1,BTCUSD:.1},
+ GBP:{EURUSD:.2,GBPUSD:.9,USDJPY:-.1,USDCHF:-.2,AUDUSD:.1,USDCAD:-.1,NZDUSD:.1,XAUUSD:.3,XAGUSD:.2,WTI:.1,BTCUSD:.1},
+ JPY:{EURUSD:.1,GBPUSD:.1,USDJPY:-.9,USDCHF:-.2,AUDUSD:-.1,USDCAD:-.1,NZDUSD:-.1,XAUUSD:.2,XAGUSD:.1,WTI:-.1,BTCUSD:-.2},
+ CHF:{EURUSD:-.2,GBPUSD:0,USDJPY:-.1,USDCHF:-.9,AUDUSD:0,USDCAD:-.1,NZDUSD:0,XAUUSD:.2,XAGUSD:.1,WTI:0,BTCUSD:0},
+ CAD:{EURUSD:.1,GBPUSD:.1,USDJPY:-.1,USDCHF:-.1,AUDUSD:.1,USDCAD:-.9,NZDUSD:.1,XAUUSD:.1,XAGUSD:.1,WTI:.4,BTCUSD:.1},
+ AUD:{EURUSD:.1,GBPUSD:.1,USDJPY:-.2,USDCHF:-.1,AUDUSD:.9,USDCAD:-.1,NZDUSD:.4,XAUUSD:.2,XAGUSD:.2,WTI:.1,BTCUSD:.2},
+ NZD:{EURUSD:.1,GBPUSD:.1,USDJPY:-.2,USDCHF:-.1,AUDUSD:.3,USDCAD:-.1,NZDUSD:.9,XAUUSD:.1,XAGUSD:.1,WTI:0,BTCUSD:.1},
+ CNY:{EURUSD:.1,GBPUSD:.1,USDJPY:-.1,USDCHF:0,AUDUSD:.4,USDCAD:-.1,NZDUSD:.3,XAUUSD:.2,XAGUSD:.3,WTI:.3,BTCUSD:.1}
+};
+var OILSENS={EURUSD:0,GBPUSD:0,USDJPY:0,USDCHF:0,AUDUSD:0,USDCAD:-.2,NZDUSD:0,XAUUSD:0,XAGUSD:0,WTI:.9,BTCUSD:0};
+
+/* event classes, first match wins. f = typical size of the reaction (1 small .. 3 large) */
+var CL=[
+ {re:/non-?farm|nfp/i,fa:"گزارش اشتغال غیرکشاورزی",f:3,k:"data",
+  d:"تعداد مشاغل جدید ساخته‌شده در بخش غیرکشاورزی در ماه گذشته. مهم‌ترین گزارش بازار کار و محرک اصلی انتظارات نرخ بهره.",
+  h:"از پرنوسان‌ترین گزارش‌های ماهانه است. معمولاً در دقایق اول حرکت تند رخ می‌دهد و گاهی ظرف چند ساعت برمی‌گردد. طلا و دلار بیشتر وقت‌ها خلاف هم حرکت می‌کنند. بازبینی عدد ماه‌های قبل هم روی واکنش اثر دارد."},
+ {re:/unemployment rate/i,fa:"نرخ بیکاری",f:2,k:"data",inv:1,
+  d:"درصد افراد بدون کار که دنبال کار هستند. عدد بالاتر یعنی بازار کار ضعیف‌تر.",
+  h:"معمولاً همراه گزارش اشتغال منتشر می‌شود و واکنش آن با عدد مشاغل ترکیب می‌شود. وقتی دو عدد خلاف هم باشند، بازار اول نوسان بی‌جهت می‌کند و بعد جهت را انتخاب می‌کند."},
+ {re:/average hourly earnings|average earnings|wage price|wages/i,fa:"رشد دستمزد",f:2,k:"data",
+  d:"رشد دستمزدها. نشانه‌ای از فشار تورمی که از بازار کار می‌آید.",
+  h:"دستمزد بالاتر از انتظار یعنی تورم دیرتر پایین می‌آید و نرخ بهره بالاتر می‌ماند. معمولاً به نفع ارز مربوطه و به ضرر طلا تمام می‌شود."},
+ {re:/core pce/i,fa:"تورم هسته PCE",f:2.5,k:"data",
+  d:"شاخص مورد علاقه فدرال رزرو برای سنجش تورم، بدون غذا و انرژی.",
+  h:"چون عدد آن از قبل با CPI و PPI تا حد زیادی حدس زده می‌شود، واکنش آن معمولاً از CPI کوچک‌تر است، مگر اینکه عدد غافلگیر کند."},
+ {re:/core cpi/i,fa:"تورم هسته مصرف‌کننده (Core CPI)",f:3,k:"data",
+  d:"تغییر قیمت مصرفی بدون غذا و انرژی. روند پایه تورم را نشان می‌دهد.",
+  h:"در سال‌های اخیر یکی از مهم‌ترین اعداد برای انتظارات نرخ بهره بوده است. تورم بالاتر از انتظار معمولاً دلار را بالا و طلا و بیت‌کوین را پایین می‌برد. حرکت اول اغلب سریع است."},
+ {re:/cpi|inflation|prices? flash/i,fa:"تورم مصرف‌کننده (CPI)",f:2.5,k:"data",
+  d:"تغییر قیمت کالاها و خدمات مصرفی. معیار اصلی تورم و تصمیم بانک مرکزی.",
+  h:"تورم بالاتر از پیش‌بینی معمولاً احتمال نرخ بهره بالاتر را زیاد می‌کند و ارز مربوطه را تقویت می‌کند. اگر عدد در حد پیش‌بینی بیاید، واکنش معمولاً کوچک است."},
+ {re:/ppi|producer price/i,fa:"قیمت تولیدکننده (PPI)",f:1.5,k:"data",
+  d:"تغییر قیمت در سطح تولیدکننده. نشانه‌ای زودهنگام از تورم آینده.",
+  h:"معمولاً اثری کوچک‌تر از CPI دارد و بیشتر وقتی مهم می‌شود که بازار نسبت به تورم حساس باشد."},
+ {re:/fomc press conference/i,fa:"نشست خبری رئیس فدرال رزرو",f:3,k:"cb",
+  d:"لحن رئیس فدرال رزرو درباره مسیر نرخ بهره. جمله‌ها بازار را لحظه‌ای جابه‌جا می‌کنند.",
+  h:"نوسان معمولاً چند مرحله‌ای است. حرکت اول با بیانیه است و بعد از شروع پرسش و پاسخ جهت می‌تواند عوض شود."},
+ {re:/minutes/i,fa:"صورت‌جلسه بانک مرکزی",f:2,k:"cb",
+  d:"صورت‌جلسه نشست قبلی بانک مرکزی. جزئیات بحث درباره نرخ بهره و تورم را نشان می‌دهد.",
+  h:"چون تصمیم قبلاً اعلام شده، واکنش معمولاً ملایم‌تر است و به لحن جزئیات بستگی دارد."},
+ {re:/speaks|speech|testif|press conference|statement of/i,fa:"سخنرانی مقام بانک مرکزی",f:2,k:"cb",
+  d:"سخنرانی یا شهادت مقام بانک مرکزی. هر اشاره به نرخ بهره یا تورم می‌تواند بازار را حرکت دهد.",
+  h:"اندازه واکنش به این بستگی دارد که حرف جدیدی گفته شود یا نه. تکرار مواضع قبلی معمولاً اثر کمی دارد."},
+ {re:/rate (statement|decision)|policy rate|bank rate|cash rate|refinancing rate|overnight rate|monetary policy|fomc|federal funds|official bank/i,fa:"تصمیم نرخ بهره بانک مرکزی",f:3,k:"cb",
+  d:"تصمیم نرخ بهره و بیانیه همراه آن. از پرتاثیرترین رویدادهای هر ارز.",
+  h:"بازار معمولاً خود تصمیم را از قبل قیمت‌گذاری کرده است، پس لحن بیانیه و اشاره به گام بعدی مهم‌تر از خود عدد است. نوسان اولیه گاهی برمی‌گردد."},
+ {re:/gdp/i,fa:"تولید ناخالص داخلی (GDP)",f:2,k:"data",
+  d:"رشد اقتصاد در دوره گذشته. معیار کلی سلامت اقتصاد.",
+  h:"معمولاً تخمین‌های اولیه بیشتر از بازبینی‌ها مهم‌اند. رشد بالاتر از انتظار ارز را تقویت می‌کند، اما اثر آن از شاخص‌های ماهانه کندتر است."},
+ {re:/retail sales/i,fa:"فروش خرده‌فروشی",f:2,k:"data",
+  d:"تغییر خرج‌کرد مصرف‌کنندگان. مصرف بخش بزرگی از اقتصاد را می‌سازد.",
+  h:"عدد اصلی و عدد هسته (بدون خودرو) را باهم نگاه کن. اختلاف آن‌ها می‌تواند واکنش را عوض کند."},
+ {re:/ism .*(pmi|manufacturing|services)|ism (manufacturing|services)/i,fa:"شاخص مدیران خرید ISM",f:2.2,k:"data",
+  d:"نظرسنجی از مدیران خرید درباره وضعیت صنعت یا خدمات آمریکا. عدد بالای ۵۰ یعنی رشد.",
+  h:"زیرشاخص‌های اشتغال و قیمت‌های پرداختی اغلب بیشتر از عدد اصلی بازار را حرکت می‌دهند."},
+ {re:/pmi/i,fa:"شاخص مدیران خرید (PMI)",f:1.5,k:"data",
+  d:"نظرسنجی از مدیران خرید. عدد بالای ۵۰ یعنی رشد و زیر ۵۰ یعنی انقباض.",
+  h:"نسخه اولیه (Flash) معمولاً بیشتر از نسخه نهایی بازار را حرکت می‌دهد. اثر آن روی ارز منطقه‌ای معمولاً بیشتر از طلا و نفت است."},
+ {re:/jolts|job openings/i,fa:"فرصت‌های شغلی (JOLTS)",f:1.5,k:"data",
+  d:"تعداد موقعیت‌های شغلی باز در آمریکا. نشانه‌ای از داغی یا سردی بازار کار.",
+  h:"معمولاً اثر متوسط دارد و بیشتر روی دلار دیده می‌شود."},
+ {re:/adp/i,fa:"اشتغال بخش خصوصی ADP",f:1.5,k:"data",
+  d:"برآورد مستقل از مشاغل بخش خصوصی آمریکا که دو روز پیش از گزارش رسمی منتشر می‌شود.",
+  h:"ارتباط آن با گزارش رسمی همیشه قوی نیست، پس واکنش بازار معمولاً از گزارش رسمی کوچک‌تر است."},
+ {re:/claims/i,fa:"درخواست بیمه بیکاری",f:1,k:"data",inv:1,
+  d:"تعداد تازه درخواست‌کنندگان بیمه بیکاری در هفته گذشته. عدد بالاتر یعنی بازار کار ضعیف‌تر.",
+  h:"گزارش هفتگی است و معمولاً اثر کوچکی دارد، مگر اینکه عدد روند چند هفته‌ای را بشکند."},
+ {re:/crude oil inventor|oil inventor|eia crude/i,fa:"ذخایر نفت خام آمریکا",f:1.6,k:"data",inv:1,oil:1,
+  d:"تغییر ذخایر نفت خام ایالات متحده در هفته گذشته. کاهش ذخایر یعنی تقاضا یا کمبود عرضه.",
+  h:"اثرش بیشتر روی خود نفت است و معمولاً در همان دقایق اول دیده می‌شود. عدد کمتر از پیش‌بینی (برداشت بیشتر) برای قیمت نفت مثبت است."},
+ {re:/employment change|employment$/i,fa:"تغییر اشتغال",f:2.2,k:"data",
+  d:"تعداد مشاغل جدید در کشور مربوطه در ماه گذشته.",
+  h:"برای ارزهایی مثل دلار کانادا و دلار استرالیا از مهم‌ترین گزارش‌های ماهانه است و می‌تواند نوسان تند ایجاد کند."},
+ {re:/trade balance|current account/i,fa:"تراز تجاری",f:1,k:"data",
+  d:"اختلاف صادرات و واردات. مازاد بیشتر معمولاً برای ارز مثبت است.",
+  h:"معمولاً واکنش کوچکی دارد، مگر برای ارزهایی که اقتصادشان به صادرات تکیه دارد."},
+ {re:/confidence|sentiment|zew|ifo|tankan/i,fa:"شاخص اعتماد و رضایت",f:1.2,k:"data",
+  d:"نظرسنجی از مصرف‌کننده یا کسب‌وکارها درباره آینده اقتصاد.",
+  h:"اثر آن معمولاً کوتاه و کوچک است و بیشتر وقتی دیده می‌شود که عدد خیلی با پیش‌بینی فاصله داشته باشد."},
+ {re:/durable goods|industrial production|manufacturing production/i,fa:"شاخص تولید و سفارش‌های صنعتی",f:1.3,k:"data",
+  d:"نشانه‌ای از وضعیت تولید و سرمایه‌گذاری صنعتی.",
+  h:"اثر متوسطی دارد و اغلب با بازبینی عدد ماه قبل همراه است."}
+];
+var DEF={fa:"",f:1.3,k:"data",d:"رویداد اقتصادی با اهمیت بالا یا متوسط در تقویم. عدد اعلام‌شده نسبت به پیش‌بینی تعیین می‌کند ارز مربوطه تقویت شود یا ضعیف.",h:"برای این نوع رویداد سابقه جداگانه‌ای در ابزار ثبت نشده است. اندازه واکنش را با شاخص‌های مشابه مقایسه کن."};
+function classify(t,imp){
+  for(var i=0;i<CL.length;i++)if(CL[i].re.test(t))return CL[i];
+  var c={};for(var k in DEF)c[k]=DEF[k];if(imp==="High")c.f=1.8;return c;
+}
+
+/* ---------- data loading ---------- */
+var FEEDS=[
+ {wk:"this",url:"https://nfs.faireconomy.media/ff_calendar_thisweek.json",need:true},
+ {wk:"next",url:"https://nfs.faireconomy.media/ff_calendar_nextweek.json",need:false}
+];
+var PROXIES=[
+ function(u){return u},
+ function(u){return "https://api.allorigins.win/raw?url="+encodeURIComponent(u)},
+ function(u){return "https://corsproxy.io/?url="+encodeURIComponent(u)}
+];
+function getJSON(url,ms){
+  return new Promise(function(res,rej){
+    var ctl=("AbortController" in window)?new AbortController():null;
+    var t=setTimeout(function(){if(ctl)ctl.abort();rej(new Error("timeout"))},ms);
+    fetch(url,{signal:ctl?ctl.signal:undefined,cache:"no-store"}).then(function(r){
+      if(!r.ok)throw new Error("http "+r.status);return r.json();
+    }).then(function(j){clearTimeout(t);res(j)}).catch(function(e){clearTimeout(t);rej(e)});
+  });
+}
+async function loadFeed(f){
+  var last;
+  for(var i=0;i<PROXIES.length;i++){
+    try{
+      var j=await getJSON(PROXIES[i](f.url),9000);
+      if(Array.isArray(j)&&j.length&&j[0]&&j[0].title)return j;
+      last=new Error("bad feed");
+    }catch(e){last=e}
+  }
+  throw last;
+}
+function sampleRaw(){
+  var n=new Date(),d=Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate());
+  var mon=d-((new Date(d).getUTCDay()+6)%7)*864e5;
+  function ev(day,h,m,cur,title,imp,fc,pv){return {title:title,country:cur,date:new Date(mon+day*864e5+(h*60+m)*6e4).toISOString(),impact:imp,forecast:fc,previous:pv,wk:day>=7?"next":"this"}}
+  return [
+   ev(1,15,0,"USD","JOLTS Job Openings","Medium","7.2M","7.4M"),
+   ev(2,13,15,"USD","ADP Non-Farm Employment Change","Medium","95K","102K"),
+   ev(2,15,0,"USD","ISM Services PMI","High","51.5","50.0"),
+   ev(2,15,30,"USD","Crude Oil Inventories","Medium","0.6M","-0.5M"),
+   ev(3,12,0,"GBP","Official Bank Rate","High","3.75%","4.00%"),
+   ev(3,13,30,"USD","Unemployment Claims","Medium","225K","222K"),
+   ev(3,19,30,"USD","FOMC Member Speaks","Medium","",""),
+   ev(4,13,30,"USD","Non-Farm Employment Change","High","75K","12K"),
+   ev(4,13,30,"USD","Unemployment Rate","High","4.4%","4.4%"),
+   ev(4,13,30,"USD","Average Hourly Earnings m/m","High","0.3%","0.2%"),
+   ev(4,13,30,"CAD","Employment Change","High","5.0K","-65.5K"),
+   ev(8,13,30,"USD","Core CPI m/m","High","0.3%","0.2%"),
+   ev(9,7,0,"GBP","GDP m/m","High","0.1%","0.0%"),
+   ev(9,13,30,"USD","PPI m/m","Medium","0.2%","0.3%"),
+   ev(10,13,30,"USD","Retail Sales m/m","High","0.4%","0.0%"),
+   ev(10,0,30,"AUD","Employment Change","High","20.0K","14.9K")
+  ];
+}
+function normalize(rows,wk){
+  var out=[];
+  rows.forEach(function(r,i){
+    if(!r||(r.impact!=="High"&&r.impact!=="Medium"))return;
+    var ts=new Date(r.date);if(isNaN(ts))return;
+    var c=classify(r.title,r.impact);
+    out.push({id:(r.wk||wk)+"-"+i,title:r.title,cur:String(r.country||"").toUpperCase(),ts:ts,impact:r.impact,
+      fc:r.forecast||"",pv:r.previous||"",wk:r.wk||wk,c:c});
+  });
+  return out;
+}
+
+/* ---------- state ---------- */
+var S={items:[],src:"",at:null,impact:"all",cur:"all",wk:"all",sc:"beat",openId:null,loading:false};
+
+async function load(force){
+  if(S.loading)return;S.loading=true;$("#refresh").classList.add("spin");
+  var items=[],src="sample",at=null,cached=null;
+  try{var raw=store("vb_cache_v1");if(raw)cached=JSON.parse(raw)}catch(e){}
+  if(!force&&cached&&Date.now()-cached.t<30*60*1000){
+    items=cached.rows;src="cache";at=new Date(cached.t);
+  }else{
+    var rows=[],ok=false;
+    for(var i=0;i<FEEDS.length;i++){
+      try{
+        var j=await loadFeed(FEEDS[i]);
+        j.forEach(function(r){r.wk=FEEDS[i].wk});rows=rows.concat(j);
+        if(FEEDS[i].need)ok=true;
+      }catch(e){}
+    }
+    if(ok){items=rows;src="live";at=new Date();store("vb_cache_v1",JSON.stringify({t:Date.now(),rows:rows}))}
+    else if(cached){items=cached.rows;src="cache";at=new Date(cached.t)}
+  }
+  if(!items.length){items=sampleRaw();src="sample"}
+  S.items=normalize(items,"this").sort(function(a,b){return a.ts-b.ts});
+  S.src=src;S.at=at;S.loading=false;$("#refresh").classList.remove("spin");
+  renderAll();
+}
+
+/* ---------- formatting ---------- */
+var TZ="Asia/Tehran";
+function dayKey(d){return d.toLocaleDateString("en-CA",{timeZone:TZ})}
+function timeFa(d){return d.toLocaleTimeString("fa-IR",{timeZone:TZ,hour:"2-digit",minute:"2-digit",hour12:false})}
+function dayFa(d){return d.toLocaleDateString("fa-IR",{timeZone:TZ,weekday:"long",day:"numeric",month:"long"})}
+function dayEn(d){return d.toLocaleDateString("en-GB",{timeZone:TZ,day:"numeric",month:"short"})}
+function pnum(s){
+  if(s==null||s==="")return null;
+  var m=String(s).replace(/,/g,"").match(/-?\d+(\.\d+)?/);if(!m)return null;
+  var v=parseFloat(m[0]),u=String(s).slice(-1).toUpperCase();
+  return v*({K:1e3,M:1e6,B:1e9,T:1e12}[u]||1);
+}
+function title(it){return it.c.fa||it.title}
+
+/* ---------- render list ---------- */
+function pill(label,val,cur,extra){
+  return '<button type="button" class="pill" data-v="'+val+'" aria-pressed="'+(cur===val)+'">'+(extra||"")+label+'</button>';
+}
+function renderFilters(){
+  $("#fImpact").innerHTML=pill("همه","all",S.impact)+pill("قرمز، پرتاثیر","High",S.impact,'<span class="dot" style="background:var(--c-red)"></span>')+pill("نارنجی، متوسط","Medium",S.impact,'<span class="dot" style="background:var(--c-orange)"></span>');
+  var present={};S.items.forEach(function(i){present[i.cur]=1});
+  var h=pill("همه","all",S.cur);
+  CURS.forEach(function(c){if(present[c])h+=pill(c,c,S.cur)});
+  $("#fCur").innerHTML=h;
+  $("#fWeek").innerHTML=pill("هر دو هفته","all",S.wk)+pill("این هفته","this",S.wk)+pill("هفته بعد","next",S.wk);
+}
+function visible(){
+  return S.items.filter(function(i){
+    return (S.impact==="all"||i.impact===S.impact)&&(S.cur==="all"||i.cur===S.cur)&&(S.wk==="all"||i.wk===S.wk);
+  });
+}
+function renderStatus(){
+  var t=S.at?timeFa(S.at):"";
+  var chip=S.src==="live"?'<span class="chip"><i></i>زنده، '+t+'</span>':
+           S.src==="cache"?'<span class="chip"><i></i>ذخیره‌شده، '+t+'</span>':
+           '<span class="chip sample"><i></i>داده نمونه</span>';
+  var hi=S.items.filter(function(i){return i.impact==="High"}).length,me=S.items.length-hi;
+  $("#status").innerHTML=chip+'<span>'+fa(hi)+' رویداد قرمز و '+fa(me)+' رویداد نارنجی. ساعت‌ها به وقت تهران است.</span>';
+  $("#sampleNote").hidden=S.src!=="sample";
+}
+function renderList(){
+  var v=visible(),now=Date.now(),today=dayKey(new Date()),html="",lastDay="";
+  if(!v.length){$("#list").innerHTML='<div class="empty">رویدادی با این فیلتر پیدا نشد.</div>';return}
+  v.forEach(function(it){
+    var k=dayKey(it.ts);
+    if(k!==lastDay){
+      if(lastDay)html+="</div>";
+      html+='<div class="day"><h2>'+dayFa(it.ts)+(k===today?' <span class="today">امروز</span>':'')+' <small class="num">'+dayEn(it.ts)+'</small></h2>';
+      lastDay=k;
+    }
+    var past=it.ts.getTime()<now-3600e3;
+    html+='<button type="button" class="ev '+it.impact+(past?' past':'')+'" data-id="'+it.id+'">'+
+      '<span class="t"><b class="num">'+timeFa(it.ts)+'</b><span class="cur">'+esc(it.cur)+'</span></span>'+
+      '<div><h3>'+esc(title(it))+'<span class="tag">'+(it.impact==="High"?"قرمز":"نارنجی")+'</span><small>'+esc(it.title)+'</small></h3>'+
+      '<p>'+esc(it.c.d)+'</p>'+
+      '<div class="meta"><span>پیش‌بینی: <b class="num">'+esc(it.fc||"-")+'</b></span><span>قبلی: <b class="num">'+esc(it.pv||"-")+'</b></span>'+(past?'<span>منتشر شده</span>':'')+'</div></div></button>';
+  });
+  $("#list").innerHTML=html+"</div>";
+}
+function renderNext(){
+  var now=Date.now(),b=$("#next"),up=S.items.filter(function(i){return i.ts.getTime()>now});
+  var pick=up.filter(function(i){return i.impact==="High"})[0]||up[0];
+  if(!pick){b.hidden=true;return}
+  var m=Math.max(0,Math.round((pick.ts.getTime()-now)/60000)),d=Math.floor(m/1440),h=Math.floor(m%1440/60),mm=m%60;
+  var cd=(d?fa(d)+" روز و ":"")+(h||d?fa(h)+" ساعت و ":"")+fa(mm)+" دقیقه";
+  b.hidden=false;b.setAttribute("data-id",pick.id);
+  b.innerHTML='<span><small>رویداد بعدی '+(pick.impact==="High"?"پرتاثیر":"")+'</small><b>'+esc(title(pick))+' ('+esc(pick.cur)+')</b></span><span class="cd">'+cd+' دیگر</span>';
+}
+function renderAll(){renderFilters();renderStatus();renderNext();renderList();if(S.openId)renderSheet()}
+
+/* ---------- sheet ---------- */
+function scenarioLabels(c){
+  if(c.k==="cb")return ["لحن تندتر از انتظار (سخت‌گیرانه)","لحن نرم‌تر از انتظار"];
+  return c.inv?["عدد پایین‌تر از پیش‌بینی","عدد بالاتر از پیش‌بینی"]:["عدد بالاتر از پیش‌بینی","عدد پایین‌تر از پیش‌بینی"];
+}
+function fmt(n,dec){return fa(Number(n.toFixed(dec)))}
+function assetRows(it,strong){
+  var c=it.c,sens=c.oil?OILSENS:(SENS[it.cur]||SENS.USD);
+  return ASSETS.map(function(a){
+    var s=sens[a.id]||0,eff=s*(strong?1:-1),abs=Math.abs(s);
+    var mag=a.base*c.f*(0.4+abs),lo=mag*0.7,hi=mag*1.4;
+    var lvl=abs<0.15?0:Math.min(4,Math.max(1,Math.round(abs*c.f*1.4)));
+    var cls=abs<0.15?"flat":(eff>0?"up":"down");
+    var txt=abs<0.15?"اثر ناچیز":(eff>0?"▲ صعودی":"▼ نزولی");
+    var bar="";for(var i=0;i<4;i++)bar+='<i class="'+(i<lvl?"f":"")+'"></i>';
+    var rng=abs<0.15?"معمولاً در حد نوسان عادی":"حدود "+fmt(lo,a.dec)+" تا "+fmt(hi,a.dec)+" "+a.unit;
+    return '<div class="as"><b>'+a.fa+'<small>'+a.id+'</small></b><span class="dir '+cls+'">'+txt+'</span>'+
+      '<span class="rng">'+rng+'</span><span class="bar '+cls+'" aria-hidden="true">'+bar+'</span></div>';
+  }).join("");
+}
+function renderSheet(){
+  var it=S.items.filter(function(i){return i.id===S.openId})[0];if(!it)return;
+  /* first button is always the outcome that is bullish for the event's currency (or for oil on inventories) */
+  var c=it.c,lb=scenarioLabels(c),strong=S.sc==="beat";
+  var f=pnum(it.fc),p=pnum(it.pv),exp="";
+  if(c.k==="data"&&f!=null&&p!=null){
+    var up=f>p,eq=f===p;
+    var better=eq?0:((up?1:-1)*(c.inv?-1:1));
+    exp=eq?"پیش‌بینی با عدد قبلی برابر است، پس بازار تغییر بزرگی انتظار ندارد."
+      :(better>0?"پیش‌بینی نسبت به قبلی بهبود را نشان می‌دهد. بخشی از آن قبلاً در قیمت است و واکنش اصلی وقتی شکل می‌گیرد که عدد از پیش‌بینی فاصله بگیرد."
+                :"پیش‌بینی نسبت به قبلی افت را نشان می‌دهد. بخشی از آن قبلاً در قیمت است و واکنش اصلی وقتی شکل می‌گیرد که عدد از پیش‌بینی فاصله بگیرد.");
+  }else if(c.k!=="data"){
+    exp="این رویداد عدد مشخصی ندارد. واکنش به تفاوت لحن و پیام با انتظار بازار بستگی دارد.";
+  }
+  var sh=$("#sheet");
+  sh.innerHTML='<div class="sh-top"><h2 id="shTitle">'+esc(title(it))+' <small>'+esc(it.title)+' · '+esc(it.cur)+'</small></h2><button type="button" class="close" id="closeSheet">بستن</button></div>'+
+   '<div class="sh-sec"><div class="kv"><div><small>زمان (تهران)</small><b class="num">'+timeFa(it.ts)+'</b></div><div><small>پیش‌بینی</small><b class="num">'+esc(it.fc||"-")+'</b></div><div><small>قبلی</small><b class="num">'+esc(it.pv||"-")+'</b></div></div></div>'+
+   '<div class="sh-sec"><h4>این خبر درباره چیست</h4><p>'+esc(c.d)+'</p></div>'+
+   (exp?'<div class="sh-sec"><div class="callout">'+esc(exp)+'</div></div>':'')+
+   '<div class="sh-sec"><h4>سابقه واکنش بازار</h4><p>'+esc(c.h)+'</p></div>'+
+   '<div class="sh-sec"><h4>اگر نتیجه این‌طور باشد</h4><div class="sc" role="group"><button type="button" data-sc="beat" aria-pressed="'+(S.sc==="beat")+'">'+lb[0]+'</button><button type="button" data-sc="miss" aria-pressed="'+(S.sc==="miss")+'">'+lb[1]+'</button></div></div>'+
+   '<div class="sh-sec"><h4>اثر احتمالی روی بازارها</h4><div class="assets">'+assetRows(it,strong)+'</div></div>'+
+   '<p class="fine" style="margin-top:14px">جهت‌ها از رابطه معمول ارز با هر دارایی و اندازه‌ها از رفتار معمول چنین رویدادهایی در ساعت اول انتشار برآورد شده‌اند. اینها پیش‌بینی قطعی یا توصیه معامله نیستند و حرکت واقعی می‌تواند کوچک‌تر، بزرگ‌تر یا برعکس باشد.</p>';
+}
+var lastFocus=null;
+function openSheet(id){
+  S.openId=id;S.sc="beat";lastFocus=document.activeElement;
+  var sh=$("#sheet"),sc=$("#scrim");
+  renderSheet();sh.hidden=false;sc.hidden=false;
+  requestAnimationFrame(function(){sh.classList.add("on");sc.classList.add("on");var c=$("#closeSheet");if(c)c.focus()});
+}
+function closeSheet(){
+  var sh=$("#sheet"),sc=$("#scrim");S.openId=null;
+  sh.classList.remove("on");sc.classList.remove("on");
+  setTimeout(function(){if(!S.openId){sh.hidden=true;sc.hidden=true}},260);
+  if(lastFocus&&lastFocus.focus)lastFocus.focus();
+}
+
+/* ---------- events ---------- */
+function bindPills(sel,key){
+  $(sel).addEventListener("click",function(e){var b=e.target.closest(".pill");if(!b)return;S[key]=b.getAttribute("data-v");renderFilters();renderList()});
+}
+bindPills("#fImpact","impact");bindPills("#fCur","cur");bindPills("#fWeek","wk");
+$("#list").addEventListener("click",function(e){var b=e.target.closest(".ev");if(b)openSheet(b.getAttribute("data-id"))});
+$("#next").addEventListener("click",function(){var id=$("#next").getAttribute("data-id");if(id)openSheet(id)});
+$("#scrim").addEventListener("click",closeSheet);
+$("#sheet").addEventListener("click",function(e){
+  if(e.target.closest("#closeSheet"))return closeSheet();
+  var b=e.target.closest("[data-sc]");if(b){S.sc=b.getAttribute("data-sc");renderSheet()}
+});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&S.openId)closeSheet()});
+$("#refresh").addEventListener("click",function(){load(true)});
+setInterval(function(){renderNext()},30000);
+load(false);
+})();
+</script>
+</body></html>
