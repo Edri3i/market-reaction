@@ -130,6 +130,8 @@ footer.in{padding-block:6px 40px;font-size:.78rem;color:var(--fg-dim)}
 .bar i{width:16px;height:6px;border-radius:3px;background:var(--surface-2)}
 .bar.up i.f{background:var(--up)} .bar.down i.f{background:var(--down)}
 .fine{font-size:.74rem;color:var(--fg-dim)}
+.prio{background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:12px 14px}
+footer a{color:var(--accent-text)}
 @media (prefers-reduced-motion:reduce){.sheet,.scrim{transition:none}.ico.spin svg{animation:none}}
 </style></head><body>
 
@@ -160,7 +162,7 @@ footer.in{padding-block:6px 40px;font-size:.78rem;color:var(--fg-dim)}
     </section>
     <section id="list" aria-label="رویدادها"></section>
   </main>
-  <footer class="in">این ابزار توصیه معاملاتی نیست. بازه‌های حرکت قیمت تخمینی و بر پایه رفتار معمول هر نوع رویداد است، نه داده لحظه‌ای. منبع تقویم: فید عمومی Forex Factory.</footer>
+  <footer class="in">این ابزار توصیه معاملاتی نیست. بازه‌های حرکت قیمت تخمینی و بر پایه رفتار معمول هر نوع رویداد است، نه داده لحظه‌ای. منبع تقویم: فید عمومی Forex Factory. پیش‌بینی و عدد قبلی ممکن است با سایت چند دقیقه اختلاف داشته باشد، برای تطبیق <a href="https://www.forexfactory.com/calendar" target="_blank" rel="noopener">تقویم Forex Factory</a> را ببین.</footer>
 
   <div class="scrim" id="scrim" hidden></div>
   <aside class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shTitle" hidden></aside>
@@ -186,18 +188,17 @@ $("#themeSeg").addEventListener("click",function(e){var b=e.target.closest("butt
 setTheme(store("vb_theme")||"auto");
 
 /* ---------- reference data ---------- */
-var CURS=["USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD","CNY"];
+var CURS=["USD","EUR","GBP","CHF","CAD","NZD","CNY"];
+var HIDE={AUD:1,JPY:1};
 var ASSETS=[
+ {id:"XAUUSD",fa:"طلا (اونس)",base:6,unit:"دلار",dec:0},
  {id:"EURUSD",fa:"یورو/دلار",base:15,unit:"پیپ",dec:0},
+ {id:"WTI",fa:"نفت خام",base:0.5,unit:"دلار",dec:1},
+ {id:"XAGUSD",fa:"نقره (اونس)",base:0.12,unit:"دلار",dec:2},
  {id:"GBPUSD",fa:"پوند/دلار",base:18,unit:"پیپ",dec:0},
- {id:"USDJPY",fa:"دلار/ین",base:20,unit:"پیپ",dec:0},
  {id:"USDCHF",fa:"دلار/فرانک",base:15,unit:"پیپ",dec:0},
- {id:"AUDUSD",fa:"دلار استرالیا/دلار",base:12,unit:"پیپ",dec:0},
  {id:"USDCAD",fa:"دلار/دلار کانادا",base:14,unit:"پیپ",dec:0},
  {id:"NZDUSD",fa:"دلار نیوزیلند/دلار",base:12,unit:"پیپ",dec:0},
- {id:"XAUUSD",fa:"طلا (اونس)",base:6,unit:"دلار",dec:0},
- {id:"XAGUSD",fa:"نقره (اونس)",base:0.12,unit:"دلار",dec:2},
- {id:"WTI",fa:"نفت خام",base:0.5,unit:"دلار",dec:1},
  {id:"BTCUSD",fa:"بیت‌کوین",base:0.6,unit:"درصد",dec:1}
 ];
 /* sens[cur][asset]: effect on the asset when that currency's news is bullish for the currency */
@@ -349,6 +350,7 @@ function normalize(rows,wk){
   var out=[];
   rows.forEach(function(r,i){
     if(!r||(r.impact!=="High"&&r.impact!=="Medium"))return;
+    if(HIDE[String(r.country||"").toUpperCase()])return;
     var ts=new Date(r.date);if(isNaN(ts))return;
     var c=classify(r.title,r.impact);
     out.push({id:(r.wk||wk)+"-"+i,title:r.title,cur:String(r.country||"").toUpperCase(),ts:ts,impact:r.impact,
@@ -362,9 +364,9 @@ var S={items:[],src:"",at:null,impact:"all",cur:"all",wk:"all",sc:"beat",openId:
 
 async function load(force){
   if(S.loading)return;S.loading=true;$("#refresh").classList.add("spin");
-  var items=[],src="sample",at=null,cached=null;
+  var items=[],src="error",at=null,cached=null;
   try{var raw=store("vb_cache_v1");if(raw)cached=JSON.parse(raw)}catch(e){}
-  if(!force&&cached&&Date.now()-cached.t<30*60*1000){
+  if(!force&&cached&&Date.now()-cached.t<10*60*1000){
     items=cached.rows;src="cache";at=new Date(cached.t);
   }else{
     var rows=[],ok=false;
@@ -378,7 +380,7 @@ async function load(force){
     if(ok){items=rows;src="live";at=new Date();store("vb_cache_v1",JSON.stringify({t:Date.now(),rows:rows}))}
     else if(cached){items=cached.rows;src="cache";at=new Date(cached.t)}
   }
-  if(!items.length){items=sampleRaw();src="sample"}
+  if(location.hash==="#demo"){items=sampleRaw();src="sample"}
   S.items=normalize(items,"this").sort(function(a,b){return a.ts-b.ts});
   S.src=src;S.at=at;S.loading=false;$("#refresh").classList.remove("spin");
   renderAll();
@@ -419,14 +421,24 @@ function renderStatus(){
   var t=S.at?timeFa(S.at):"";
   var chip=S.src==="live"?'<span class="chip"><i></i>زنده، '+t+'</span>':
            S.src==="cache"?'<span class="chip"><i></i>ذخیره‌شده، '+t+'</span>':
-           '<span class="chip sample"><i></i>داده نمونه</span>';
+           S.src==="sample"?'<span class="chip sample"><i></i>داده نمونه</span>':
+           '<span class="chip sample"><i></i>بدون اتصال</span>';
   var hi=S.items.filter(function(i){return i.impact==="High"}).length,me=S.items.length-hi;
   $("#status").innerHTML=chip+'<span>'+fa(hi)+' رویداد قرمز و '+fa(me)+' رویداد نارنجی. ساعت‌ها به وقت تهران است.</span>';
-  $("#sampleNote").hidden=S.src!=="sample";
+  var nt=$("#sampleNote");
+  nt.hidden=!(S.src==="sample"||S.src==="error");
+  nt.textContent=S.src==="sample"?"این حالت فقط نمایشی است و اعداد ساختگی‌اند. برای داده واقعی آدرس را بدون #demo باز کن."
+    :"اتصال به فید تقویم برقرار نشد و هیچ داده‌ای نمایش داده نمی‌شود. اینترنت یا فیلترشکن را بررسی کن و دکمه «به‌روزرسانی» را بزن. اعداد ساختگی نشان داده نمی‌شوند.";
+}
+function trend(it){
+  var f=pnum(it.fc),p=pnum(it.pv);
+  if(f==null||p==null)return null;
+  var d=f>p?1:(f<p?-1:0);
+  return {d:d,better:d===0?0:d*(it.c.inv?-1:1)};
 }
 function renderList(){
   var v=visible(),now=Date.now(),today=dayKey(new Date()),html="",lastDay="";
-  if(!v.length){$("#list").innerHTML='<div class="empty">رویدادی با این فیلتر پیدا نشد.</div>';return}
+  if(!v.length){$("#list").innerHTML='<div class="empty">'+(S.src==="error"?"داده‌ای برای نمایش نیست.":"رویدادی با این فیلتر پیدا نشد.")+'</div>';return}
   v.forEach(function(it){
     var k=dayKey(it.ts);
     if(k!==lastDay){
@@ -439,7 +451,7 @@ function renderList(){
       '<span class="t"><b class="num">'+timeFa(it.ts)+'</b><span class="cur">'+esc(it.cur)+'</span></span>'+
       '<div><h3>'+esc(title(it))+'<span class="tag">'+(it.impact==="High"?"قرمز":"نارنجی")+'</span><small>'+esc(it.title)+'</small></h3>'+
       '<p>'+esc(it.c.d)+'</p>'+
-      '<div class="meta"><span>پیش‌بینی: <b class="num">'+esc(it.fc||"-")+'</b></span><span>قبلی: <b class="num">'+esc(it.pv||"-")+'</b></span>'+(past?'<span>منتشر شده</span>':'')+'</div></div></button>';
+      '<div class="meta"><span>پیش‌بینی: <b class="num">'+esc(it.fc||"-")+'</b></span><span>قبلی: <b class="num">'+esc(it.pv||"-")+'</b></span>'+(function(){var t=trend(it);return t?'<span>پیش‌بینی نسبت به قبلی: <b>'+(t.d>0?"▲ بالاتر":t.d<0?"▼ پایین‌تر":"برابر")+'</b></span>':""})()+(past?'<span>منتشر شده</span>':'')+'</div></div></button>';
   });
   $("#list").innerHTML=html+"</div>";
 }
@@ -460,16 +472,16 @@ function scenarioLabels(c){
   return c.inv?["عدد پایین‌تر از پیش‌بینی","عدد بالاتر از پیش‌بینی"]:["عدد بالاتر از پیش‌بینی","عدد پایین‌تر از پیش‌بینی"];
 }
 function fmt(n,dec){return fa(Number(n.toFixed(dec)))}
-function assetRows(it,strong){
+function assetRows(it,strong,tilt){
   var c=it.c,sens=c.oil?OILSENS:(SENS[it.cur]||SENS.USD);
   return ASSETS.map(function(a){
     var s=sens[a.id]||0,eff=s*(strong?1:-1),abs=Math.abs(s);
     var mag=a.base*c.f*(0.4+abs),lo=mag*0.7,hi=mag*1.4;
     var lvl=abs<0.15?0:Math.min(4,Math.max(1,Math.round(abs*c.f*1.4)));
     var cls=abs<0.15?"flat":(eff>0?"up":"down");
-    var txt=abs<0.15?"اثر ناچیز":(eff>0?"▲ صعودی":"▼ نزولی");
+    var txt=abs<0.15?"اثر ناچیز":(eff>0?"▲ ":"▼ ")+(tilt?"سوگیری ":"")+(eff>0?"صعودی":"نزولی");
     var bar="";for(var i=0;i<4;i++)bar+='<i class="'+(i<lvl?"f":"")+'"></i>';
-    var rng=abs<0.15?"معمولاً در حد نوسان عادی":"حدود "+fmt(lo,a.dec)+" تا "+fmt(hi,a.dec)+" "+a.unit;
+    var rng=abs<0.15?"معمولاً در حد نوسان عادی":(tilt?"بر پایه انتظار بازار پیش از خبر":"حدود "+fmt(lo,a.dec)+" تا "+fmt(hi,a.dec)+" "+a.unit);
     return '<div class="as"><b>'+a.fa+'<small>'+a.id+'</small></b><span class="dir '+cls+'">'+txt+'</span>'+
       '<span class="rng">'+rng+'</span><span class="bar '+cls+'" aria-hidden="true">'+bar+'</span></div>';
   }).join("");
@@ -488,11 +500,22 @@ function renderSheet(){
   }else if(c.k!=="data"){
     exp="این رویداد عدد مشخصی ندارد. واکنش به تفاوت لحن و پیام با انتظار بازار بستگی دارد.";
   }
+  var tr=trend(it),prio="";
+  if(tr){
+    var cn=c.oil?"قیمت نفت":("ارز "+it.cur);
+    var head=tr.d===0?"پیش‌بینی با عدد قبلی برابر است":("پیش‌بینی "+(tr.d>0?"بالاتر":"پایین‌تر")+" از عدد قبلی است");
+    var msg=tr.better===0?"بازار تغییر مهمی انتظار ندارد، پس پیش از خبر سوگیری مشخصی در قیمت نیست."
+      :(tr.better>0?"یعنی بازار بهبود و تقویت "+cn+" را انتظار دارد.":"یعنی بازار ضعف و افت "+cn+" را انتظار دارد.");
+    prio='<div class="sh-sec prio"><h4>اولویت اول: پیش‌بینی نسبت به عدد قبلی</h4>'+
+      '<p><b>'+head+'</b> (<span class="num">'+esc(it.fc)+'</span> در برابر <span class="num">'+esc(it.pv)+'</span>). '+msg+'</p>'+
+      (tr.better!==0?'<div class="assets">'+assetRows(it,tr.better>0,true)+'</div>':'')+
+      '<p class="fine">این سوگیری به عدد نهایی ربطی ندارد. بخشی از آن معمولاً پیش از خبر در قیمت آمده و بعد از انتشار، فاصله عدد واقعی با پیش‌بینی جهت را مشخص می‌کند.</p></div>';
+  }
   var sh=$("#sheet");
   sh.innerHTML='<div class="sh-top"><h2 id="shTitle">'+esc(title(it))+' <small>'+esc(it.title)+' · '+esc(it.cur)+'</small></h2><button type="button" class="close" id="closeSheet">بستن</button></div>'+
    '<div class="sh-sec"><div class="kv"><div><small>زمان (تهران)</small><b class="num">'+timeFa(it.ts)+'</b></div><div><small>پیش‌بینی</small><b class="num">'+esc(it.fc||"-")+'</b></div><div><small>قبلی</small><b class="num">'+esc(it.pv||"-")+'</b></div></div></div>'+
-   '<div class="sh-sec"><h4>این خبر درباره چیست</h4><p>'+esc(c.d)+'</p></div>'+
-   (exp?'<div class="sh-sec"><div class="callout">'+esc(exp)+'</div></div>':'')+
+   prio+'<div class="sh-sec"><h4>این خبر درباره چیست</h4><p>'+esc(c.d)+'</p></div>'+
+   (exp&&!tr?'<div class="sh-sec"><div class="callout">'+esc(exp)+'</div></div>':'')+
    '<div class="sh-sec"><h4>سابقه واکنش بازار</h4><p>'+esc(c.h)+'</p></div>'+
    '<div class="sh-sec"><h4>اگر نتیجه این‌طور باشد</h4><div class="sc" role="group"><button type="button" data-sc="beat" aria-pressed="'+(S.sc==="beat")+'">'+lb[0]+'</button><button type="button" data-sc="miss" aria-pressed="'+(S.sc==="miss")+'">'+lb[1]+'</button></div></div>'+
    '<div class="sh-sec"><h4>اثر احتمالی روی بازارها</h4><div class="assets">'+assetRows(it,strong)+'</div></div>'+
