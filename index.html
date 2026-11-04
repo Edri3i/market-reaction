@@ -129,7 +129,28 @@ footer.in{padding-block:6px 40px;font-size:.78rem;color:var(--fg-dim)}
 .bar{display:flex;gap:3px;justify-content:flex-end}
 .bar i{width:16px;height:6px;border-radius:3px;background:var(--surface-2)}
 .bar.up i.f{background:var(--up)} .bar.down i.f{background:var(--down)}
+.refbox{display:flex;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 14px}
+.candles{flex:none;overflow:visible}
+.candles .u{stroke:var(--up);fill:var(--up);stroke-width:2;stroke-linecap:round}
+.candles .d{stroke:var(--down);fill:var(--down);stroke-width:2;stroke-linecap:round}
+.candles line{fill:none}
+.candles .c{transform-box:fill-box;transform-origin:center}
+.rinfo{flex:1;min-width:0;display:grid}
+.rinfo b{font-size:.95rem}
+.rinfo small{color:var(--fg-dim);font-size:.78rem}
+.rbtn{border:0;background:var(--accent);color:var(--on-accent);border-radius:10px;padding:8px 16px;font-weight:700;font-size:.88rem;flex:none}
+.refbox.spin .c{animation:cdl .9s ease-in-out infinite}
+.refbox.spin .c2{animation-delay:-.3s}.refbox.spin .c3{animation-delay:-.6s}.refbox.spin .c4{animation-delay:-.15s}
+@keyframes cdl{0%,100%{transform:translateY(7px) scaleY(.8)}50%{transform:translateY(-7px) scaleY(1.2)}}
+@media (prefers-reduced-motion:reduce){.refbox.spin .c{animation:none}}
 .fine{font-size:.74rem;color:var(--fg-dim)}
+.evw{display:grid}
+.ev{scroll-margin-top:10px}
+.ev.open{border-color:var(--accent);border-bottom-left-radius:0;border-bottom-right-radius:0}
+.more{color:var(--accent-text);font-weight:700}
+.det{background:var(--surface);border:1px solid var(--accent);border-top:0;border-radius:0 0 12px 12px;padding:6px 14px 16px;min-width:0}
+.det .sh-sec:first-child{margin-top:8px}
+.det .prio{background:var(--bg)}
 .prio{background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:12px 14px}
 footer a{color:var(--accent-text)}
 @media (prefers-reduced-motion:reduce){.sheet,.scrim{transition:none}.ico.spin svg{animation:none}}
@@ -147,7 +168,6 @@ footer a{color:var(--accent-text)}
         <button type="button" data-m="dark" aria-pressed="false">شب</button>
         <button type="button" data-m="auto" aria-pressed="true">خودکار</button>
       </div>
-      <button type="button" class="ico" id="refresh"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>به‌روزرسانی</button>
     </div>
   </div></div>
 
@@ -160,12 +180,19 @@ footer a{color:var(--accent-text)}
       <div class="row"><span class="lbl">ارز</span><div class="pills" id="fCur"></div></div>
       <div class="row"><span class="lbl">بازه</span><div class="pills" id="fWeek"></div></div>
     </section>
+    <div class="refbox" id="refbox">
+      <svg class="candles" width="52" height="40" viewBox="0 0 52 40" aria-hidden="true">
+        <g class="c c1"><line class="u" x1="8" y1="5" x2="8" y2="33"/><rect class="u" x="4" y="11" width="8" height="15" rx="1.5"/></g>
+        <g class="c c2"><line class="d" x1="20" y1="8" x2="20" y2="36"/><rect class="d" x="16" y="14" width="8" height="14" rx="1.5"/></g>
+        <g class="c c3"><line class="u" x1="32" y1="4" x2="32" y2="32"/><rect class="u" x="28" y="9" width="8" height="16" rx="1.5"/></g>
+        <g class="c c4"><line class="d" x1="44" y1="7" x2="44" y2="35"/><rect class="d" x="40" y="13" width="8" height="13" rx="1.5"/></g>
+      </svg>
+      <div class="rinfo"><b>تقویم اقتصادی</b><small id="refInfo"></small></div>
+      <button type="button" class="rbtn" id="refresh">به‌روزرسانی</button>
+    </div>
     <section id="list" aria-label="رویدادها"></section>
   </main>
   <footer class="in">این ابزار توصیه معاملاتی نیست. بازه‌های حرکت قیمت تخمینی و بر پایه رفتار معمول هر نوع رویداد است، نه داده لحظه‌ای. منبع تقویم: فید عمومی Forex Factory. پیش‌بینی و عدد قبلی ممکن است با سایت چند دقیقه اختلاف داشته باشد، برای تطبیق <a href="https://www.forexfactory.com/calendar" target="_blank" rel="noopener">تقویم Forex Factory</a> را ببین.</footer>
-
-  <div class="scrim" id="scrim" hidden></div>
-  <aside class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shTitle" hidden></aside>
 </div>
 
 <script>
@@ -363,7 +390,7 @@ function normalize(rows,wk){
 var S={items:[],src:"",at:null,impact:"all",cur:"all",wk:"all",sc:"beat",openId:null,loading:false};
 
 async function load(force){
-  if(S.loading)return;S.loading=true;$("#refresh").classList.add("spin");
+  if(S.loading)return;S.loading=true;$("#refbox").classList.add("spin");var t0=Date.now();
   var items=[],src="error",at=null,cached=null;
   try{var raw=store("vb_cache_v1");if(raw)cached=JSON.parse(raw)}catch(e){}
   if(!force&&cached&&Date.now()-cached.t<10*60*1000){
@@ -382,7 +409,8 @@ async function load(force){
   }
   if(location.hash==="#demo"){items=sampleRaw();src="sample"}
   S.items=normalize(items,"this").sort(function(a,b){return a.ts-b.ts});
-  S.src=src;S.at=at;S.loading=false;$("#refresh").classList.remove("spin");
+  await new Promise(function(r){setTimeout(r,Math.max(0,1400-(Date.now()-t0)))});
+  S.src=src;S.at=at;S.loading=false;$("#refbox").classList.remove("spin");
   renderAll();
 }
 
@@ -425,6 +453,7 @@ function renderStatus(){
            '<span class="chip sample"><i></i>بدون اتصال</span>';
   var hi=S.items.filter(function(i){return i.impact==="High"}).length,me=S.items.length-hi;
   $("#status").innerHTML=chip+'<span>'+fa(hi)+' رویداد قرمز و '+fa(me)+' رویداد نارنجی. ساعت‌ها به وقت تهران است.</span>';
+  $("#refInfo").textContent=S.at?"آخرین دریافت: "+timeFa(S.at):"هنوز داده‌ای دریافت نشده";
   var nt=$("#sampleNote");
   nt.hidden=!(S.src==="sample"||S.src==="error");
   nt.textContent=S.src==="sample"?"این حالت فقط نمایشی است و اعداد ساختگی‌اند. برای داده واقعی آدرس را بدون #demo باز کن."
@@ -447,11 +476,12 @@ function renderList(){
       lastDay=k;
     }
     var past=it.ts.getTime()<now-3600e3;
-    html+='<button type="button" class="ev '+it.impact+(past?' past':'')+'" data-id="'+it.id+'">'+
+    var op=S.openId===it.id;
+    html+='<div class="evw"><button type="button" class="ev '+it.impact+(past?' past':'')+(op?' open':'')+'" data-id="'+it.id+'" aria-expanded="'+op+'">'+
       '<span class="t"><b class="num">'+timeFa(it.ts)+'</b><span class="cur">'+esc(it.cur)+'</span></span>'+
       '<div><h3>'+esc(title(it))+'<span class="tag">'+(it.impact==="High"?"قرمز":"نارنجی")+'</span><small>'+esc(it.title)+'</small></h3>'+
       '<p>'+esc(it.c.d)+'</p>'+
-      '<div class="meta"><span>پیش‌بینی: <b class="num">'+esc(it.fc||"-")+'</b></span><span>قبلی: <b class="num">'+esc(it.pv||"-")+'</b></span>'+(function(){var t=trend(it);return t?'<span>پیش‌بینی نسبت به قبلی: <b>'+(t.d>0?"▲ بالاتر":t.d<0?"▼ پایین‌تر":"برابر")+'</b></span>':""})()+(past?'<span>منتشر شده</span>':'')+'</div></div></button>';
+      '<div class="meta"><span>پیش‌بینی: <b class="num">'+esc(it.fc||"-")+'</b></span><span>قبلی: <b class="num">'+esc(it.pv||"-")+'</b></span>'+(function(){var t=trend(it);return t?'<span>پیش‌بینی نسبت به قبلی: <b>'+(t.d>0?"▲ بالاتر":t.d<0?"▼ پایین‌تر":"برابر")+'</b></span>':""})()+(past?'<span>منتشر شده</span>':'')+'<span class="more">'+(op?"بستن ▴":"جزئیات و اثر روی بازار ▾")+'</span></div></div></button>'+(op?'<div class="det" id="det">'+detailHTML(it)+'</div>':'')+'</div>';
   });
   $("#list").innerHTML=html+"</div>";
 }
@@ -464,7 +494,7 @@ function renderNext(){
   b.hidden=false;b.setAttribute("data-id",pick.id);
   b.innerHTML='<span><small>رویداد بعدی '+(pick.impact==="High"?"پرتاثیر":"")+'</small><b>'+esc(title(pick))+' ('+esc(pick.cur)+')</b></span><span class="cd">'+cd+' دیگر</span>';
 }
-function renderAll(){renderFilters();renderStatus();renderNext();renderList();if(S.openId)renderSheet()}
+function renderAll(){renderFilters();renderStatus();renderNext();renderList();}
 
 /* ---------- sheet ---------- */
 function scenarioLabels(c){
@@ -486,21 +516,9 @@ function assetRows(it,strong,tilt){
       '<span class="rng">'+rng+'</span><span class="bar '+cls+'" aria-hidden="true">'+bar+'</span></div>';
   }).join("");
 }
-function renderSheet(){
-  var it=S.items.filter(function(i){return i.id===S.openId})[0];if(!it)return;
-  /* first button is always the outcome that is bullish for the event's currency (or for oil on inventories) */
+function detailHTML(it){
   var c=it.c,lb=scenarioLabels(c),strong=S.sc==="beat";
-  var f=pnum(it.fc),p=pnum(it.pv),exp="";
-  if(c.k==="data"&&f!=null&&p!=null){
-    var up=f>p,eq=f===p;
-    var better=eq?0:((up?1:-1)*(c.inv?-1:1));
-    exp=eq?"پیش‌بینی با عدد قبلی برابر است، پس بازار تغییر بزرگی انتظار ندارد."
-      :(better>0?"پیش‌بینی نسبت به قبلی بهبود را نشان می‌دهد. بخشی از آن قبلاً در قیمت است و واکنش اصلی وقتی شکل می‌گیرد که عدد از پیش‌بینی فاصله بگیرد."
-                :"پیش‌بینی نسبت به قبلی افت را نشان می‌دهد. بخشی از آن قبلاً در قیمت است و واکنش اصلی وقتی شکل می‌گیرد که عدد از پیش‌بینی فاصله بگیرد.");
-  }else if(c.k!=="data"){
-    exp="این رویداد عدد مشخصی ندارد. واکنش به تفاوت لحن و پیام با انتظار بازار بستگی دارد.";
-  }
-  var tr=trend(it),prio="";
+  var tr=trend(it),prio="",exp="";
   if(tr){
     var cn=c.oil?"قیمت نفت":("ارز "+it.cur);
     var head=tr.d===0?"پیش‌بینی با عدد قبلی برابر است":("پیش‌بینی "+(tr.d>0?"بالاتر":"پایین‌تر")+" از عدد قبلی است");
@@ -510,44 +528,45 @@ function renderSheet(){
       '<p><b>'+head+'</b> (<span class="num">'+esc(it.fc)+'</span> در برابر <span class="num">'+esc(it.pv)+'</span>). '+msg+'</p>'+
       (tr.better!==0?'<div class="assets">'+assetRows(it,tr.better>0,true)+'</div>':'')+
       '<p class="fine">این سوگیری به عدد نهایی ربطی ندارد. بخشی از آن معمولاً پیش از خبر در قیمت آمده و بعد از انتشار، فاصله عدد واقعی با پیش‌بینی جهت را مشخص می‌کند.</p></div>';
+  }else if(c.k!=="data"){
+    exp="این رویداد عدد مشخصی ندارد. واکنش به تفاوت لحن و پیام با انتظار بازار بستگی دارد.";
   }
-  var sh=$("#sheet");
-  sh.innerHTML='<div class="sh-top"><h2 id="shTitle">'+esc(title(it))+' <small>'+esc(it.title)+' · '+esc(it.cur)+'</small></h2><button type="button" class="close" id="closeSheet">بستن</button></div>'+
-   '<div class="sh-sec"><div class="kv"><div><small>زمان (تهران)</small><b class="num">'+timeFa(it.ts)+'</b></div><div><small>پیش‌بینی</small><b class="num">'+esc(it.fc||"-")+'</b></div><div><small>قبلی</small><b class="num">'+esc(it.pv||"-")+'</b></div></div></div>'+
-   prio+'<div class="sh-sec"><h4>این خبر درباره چیست</h4><p>'+esc(c.d)+'</p></div>'+
-   (exp&&!tr?'<div class="sh-sec"><div class="callout">'+esc(exp)+'</div></div>':'')+
+  return '<div class="sh-sec"><div class="kv"><div><small>زمان (تهران)</small><b class="num">'+timeFa(it.ts)+'</b></div><div><small>پیش‌بینی</small><b class="num">'+esc(it.fc||"-")+'</b></div><div><small>قبلی</small><b class="num">'+esc(it.pv||"-")+'</b></div></div></div>'+
+   prio+(exp?'<div class="sh-sec"><div class="callout">'+esc(exp)+'</div></div>':'')+
    '<div class="sh-sec"><h4>سابقه واکنش بازار</h4><p>'+esc(c.h)+'</p></div>'+
    '<div class="sh-sec"><h4>اگر نتیجه این‌طور باشد</h4><div class="sc" role="group"><button type="button" data-sc="beat" aria-pressed="'+(S.sc==="beat")+'">'+lb[0]+'</button><button type="button" data-sc="miss" aria-pressed="'+(S.sc==="miss")+'">'+lb[1]+'</button></div></div>'+
    '<div class="sh-sec"><h4>اثر احتمالی روی بازارها</h4><div class="assets">'+assetRows(it,strong)+'</div></div>'+
    '<p class="fine" style="margin-top:14px">جهت‌ها از رابطه معمول ارز با هر دارایی و اندازه‌ها از رفتار معمول چنین رویدادهایی در ساعت اول انتشار برآورد شده‌اند. اینها پیش‌بینی قطعی یا توصیه معامله نیستند و حرکت واقعی می‌تواند کوچک‌تر، بزرگ‌تر یا برعکس باشد.</p>';
 }
-var lastFocus=null;
-function openSheet(id){
-  S.openId=id;S.sc="beat";lastFocus=document.activeElement;
-  var sh=$("#sheet"),sc=$("#scrim");
-  renderSheet();sh.hidden=false;sc.hidden=false;
-  requestAnimationFrame(function(){sh.classList.add("on");sc.classList.add("on");var c=$("#closeSheet");if(c)c.focus()});
-}
-function closeSheet(){
-  var sh=$("#sheet"),sc=$("#scrim");S.openId=null;
-  sh.classList.remove("on");sc.classList.remove("on");
-  setTimeout(function(){if(!S.openId){sh.hidden=true;sc.hidden=true}},260);
-  if(lastFocus&&lastFocus.focus)lastFocus.focus();
-}
+function findItem(id){return S.items.filter(function(i){return i.id===id})[0]}
 
 /* ---------- events ---------- */
 function bindPills(sel,key){
   $(sel).addEventListener("click",function(e){var b=e.target.closest(".pill");if(!b)return;S[key]=b.getAttribute("data-v");renderFilters();renderList()});
 }
 bindPills("#fImpact","impact");bindPills("#fCur","cur");bindPills("#fWeek","wk");
-$("#list").addEventListener("click",function(e){var b=e.target.closest(".ev");if(b)openSheet(b.getAttribute("data-id"))});
-$("#next").addEventListener("click",function(){var id=$("#next").getAttribute("data-id");if(id)openSheet(id)});
-$("#scrim").addEventListener("click",closeSheet);
-$("#sheet").addEventListener("click",function(e){
-  if(e.target.closest("#closeSheet"))return closeSheet();
-  var b=e.target.closest("[data-sc]");if(b){S.sc=b.getAttribute("data-sc");renderSheet()}
+function openEvent(id,forceOpen){
+  S.openId=(S.openId===id&&!forceOpen)?null:id;
+  if(S.openId)S.sc="beat";
+  renderList();
+  if(S.openId){var el=$('.ev[data-id="'+S.openId+'"]');if(el)el.scrollIntoView({behavior:"smooth",block:"start"})}
+}
+$("#list").addEventListener("click",function(e){
+  var sc=e.target.closest("[data-sc]");
+  if(sc){
+    S.sc=sc.getAttribute("data-sc");
+    var it=findItem(S.openId),d=$("#det");
+    if(it&&d)d.innerHTML=detailHTML(it);
+    return;
+  }
+  var b=e.target.closest(".ev");if(b)openEvent(b.getAttribute("data-id"),false);
 });
-document.addEventListener("keydown",function(e){if(e.key==="Escape"&&S.openId)closeSheet()});
+$("#next").addEventListener("click",function(){
+  var id=$("#next").getAttribute("data-id");if(!id)return;
+  var it=findItem(id);
+  if(it&&visible().indexOf(it)<0){S.impact="all";S.cur="all";S.wk="all";renderFilters()}
+  openEvent(id,true);
+});
 $("#refresh").addEventListener("click",function(){load(true)});
 setInterval(function(){renderNext()},30000);
 load(false);
