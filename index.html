@@ -144,6 +144,15 @@ footer.in{padding-block:6px 40px;font-size:.78rem;color:var(--fg-dim)}
 @keyframes cdl{0%,100%{transform:translateY(7px) scaleY(.8)}50%{transform:translateY(-7px) scaleY(1.2)}}
 @media (prefers-reduced-motion:reduce){.refbox.spin .c{animation:none}}
 .fine{font-size:.74rem;color:var(--fg-dim)}
+.news{background:var(--surface);border:2px solid var(--c-orange);border-radius:14px;padding:12px 14px;display:grid;gap:6px;min-width:0}
+.news h2{margin:0;font-size:1rem;font-weight:800}
+.news p{margin:0}
+.news ul{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:10px}
+.news li{display:grid;gap:2px;min-width:0;padding-top:10px;border-top:1px solid var(--line)}
+.news li:first-child{border-top:0;padding-top:0}
+.news .nt{color:var(--fg-dim);font-size:.76rem}
+.news .nh{font-weight:600;font-size:.92rem;text-align:start;unicode-bidi:plaintext;overflow-wrap:anywhere}
+.news a{color:var(--accent-text);font-size:.8rem;font-weight:700;justify-self:start}
 #app{overflow-x:hidden;width:100%}
 .band .by{flex:1 0 100%;text-align:center;font-size:.74rem;letter-spacing:.08em;color:var(--head-dim);font-weight:500;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.14)}
 .evw{display:grid;grid-template-columns:minmax(0,1fr)}
@@ -178,6 +187,7 @@ footer a{color:var(--accent-text)}
     <div class="status" id="status" aria-live="polite"></div>
     <div class="note" id="sampleNote" hidden>اتصال به فید زنده برقرار نشد، پس داده نمونه نمایش داده می‌شود. این رویدادها واقعی نیستند. چند لحظه بعد دکمه «به‌روزرسانی» را بزن یا ابزار را مستقیم در مرورگر گوشی باز کن.</div>
     <button type="button" class="next" id="next" hidden></button>
+    <section class="news" id="news" hidden aria-label="اخبار مهم دلار"></section>
     <section class="filters" aria-label="فیلتر">
       <div class="row"><span class="lbl">اهمیت</span><div class="pills" id="fImpact"></div></div>
       <div class="row"><span class="lbl">ارز</span><div class="pills" id="fCur"></div></div>
@@ -330,8 +340,20 @@ var FEEDS=[
 var PROXIES=[
  function(u){return u},
  function(u){return "https://api.allorigins.win/raw?url="+encodeURIComponent(u)},
- function(u){return "https://corsproxy.io/?url="+encodeURIComponent(u)}
+ function(u){return "https://corsproxy.io/?url="+encodeURIComponent(u)},
+ function(u){return "https://api.codetabs.com/v1/proxy?quest="+encodeURIComponent(u)},
+ function(u){return "https://thingproxy.freeboard.io/fetch/"+u}
 ];
+/* snapshot file next to this page, refreshed by the GitHub workflow; same origin so it needs no proxy */
+async function loadSnapshot(){
+  var j=await getJSON("calendar.json?t="+Date.now(),8000);
+  if(!j||!Array.isArray(j.thisweek)||!j.thisweek.length)throw new Error("empty");
+  var rows=[];
+  j.thisweek.forEach(function(r){r.wk="this";rows.push(r)});
+  (j.nextweek||[]).forEach(function(r){r.wk="next";rows.push(r)});
+  var at=new Date(j.updated||Date.now());
+  return {rows:rows,at:isNaN(at)?new Date():at,news:Array.isArray(j.news)?j.news:[]};
+}
 function getJSON(url,ms){
   return new Promise(function(res,rej){
     var ctl=("AbortController" in window)?new AbortController():null;
@@ -389,13 +411,19 @@ function normalize(rows,wk){
 }
 
 /* ---------- state ---------- */
-var S={items:[],src:"",at:null,impact:"all",cur:"all",wk:"all",sc:"beat",openId:null,loading:false};
+var S={items:[],news:[],src:"",at:null,impact:"all",cur:"all",wk:"all",sc:"beat",openId:null,loading:false};
 
 async function load(force){
   if(S.loading)return;S.loading=true;$("#refbox").classList.add("spin");var t0=Date.now();
   var items=[],src="error",at=null,cached=null;
   try{var raw=store("vb_cache_v1");if(raw)cached=JSON.parse(raw)}catch(e){}
-  if(!force&&cached&&Date.now()-cached.t<10*60*1000){
+  var snap=null;
+  try{snap=await loadSnapshot()}catch(e){}
+  var snapFresh=snap&&Date.now()-snap.at.getTime()<3*3600e3;
+  if(snapFresh){
+    items=snap.rows;src="live";at=snap.at;
+    store("vb_cache_v1",JSON.stringify({t:snap.at.getTime(),rows:snap.rows}));
+  }else if(!force&&cached&&Date.now()-cached.t<10*60*1000){
     items=cached.rows;src="cache";at=new Date(cached.t);
   }else{
     var rows=[],ok=false;
@@ -407,10 +435,12 @@ async function load(force){
       }catch(e){}
     }
     if(ok){items=rows;src="live";at=new Date();store("vb_cache_v1",JSON.stringify({t:Date.now(),rows:rows}))}
+    else if(snap){items=snap.rows;src="cache";at=snap.at}
     else if(cached){items=cached.rows;src="cache";at=new Date(cached.t)}
   }
   if(location.hash==="#demo"){items=sampleRaw();src="sample"}
   S.items=normalize(items,"this").sort(function(a,b){return a.ts-b.ts});
+  S.news=(snap&&snap.news)||[];
   await new Promise(function(r){setTimeout(r,Math.max(0,1400-(Date.now()-t0)))});
   S.src=src;S.at=at;S.loading=false;$("#refbox").classList.remove("spin");
   renderAll();
@@ -434,16 +464,20 @@ function title(it){return it.c.fa||it.title}
 function pill(label,val,cur,extra){
   return '<button type="button" class="pill" data-v="'+val+'" aria-pressed="'+(cur===val)+'">'+(extra||"")+label+'</button>';
 }
+function alive(){
+  var today=dayKey(new Date());
+  return S.items.filter(function(i){return dayKey(i.ts)>=today});
+}
 function renderFilters(){
   $("#fImpact").innerHTML=pill("همه","all",S.impact)+pill("قرمز، پرتاثیر","High",S.impact,'<span class="dot" style="background:var(--c-red)"></span>')+pill("نارنجی، متوسط","Medium",S.impact,'<span class="dot" style="background:var(--c-orange)"></span>');
-  var present={};S.items.forEach(function(i){present[i.cur]=1});
+  var present={};alive().forEach(function(i){present[i.cur]=1});
   var h=pill("همه","all",S.cur);
   CURS.forEach(function(c){if(present[c])h+=pill(c,c,S.cur)});
   $("#fCur").innerHTML=h;
   $("#fWeek").innerHTML=pill("هر دو هفته","all",S.wk)+pill("این هفته","this",S.wk)+pill("هفته بعد","next",S.wk);
 }
 function visible(){
-  return S.items.filter(function(i){
+  return alive().filter(function(i){
     return (S.impact==="all"||i.impact===S.impact)&&(S.cur==="all"||i.cur===S.cur)&&(S.wk==="all"||i.wk===S.wk);
   });
 }
@@ -453,13 +487,13 @@ function renderStatus(){
            S.src==="cache"?'<span class="chip"><i></i>ذخیره‌شده، '+t+'</span>':
            S.src==="sample"?'<span class="chip sample"><i></i>داده نمونه</span>':
            '<span class="chip sample"><i></i>بدون اتصال</span>';
-  var hi=S.items.filter(function(i){return i.impact==="High"}).length,me=S.items.length-hi;
+  var av=alive(),hi=av.filter(function(i){return i.impact==="High"}).length,me=av.length-hi;
   $("#status").innerHTML=chip+'<span>'+fa(hi)+' رویداد قرمز و '+fa(me)+' رویداد نارنجی. ساعت‌ها به وقت تهران است.</span>';
   $("#refInfo").textContent=S.at?"آخرین دریافت: "+timeFa(S.at):"هنوز داده‌ای دریافت نشده";
   var nt=$("#sampleNote");
   nt.hidden=!(S.src==="sample"||S.src==="error");
   nt.textContent=S.src==="sample"?"این حالت فقط نمایشی است و اعداد ساختگی‌اند. برای داده واقعی آدرس را بدون #demo باز کن."
-    :"اتصال به فید تقویم برقرار نشد و هیچ داده‌ای نمایش داده نمی‌شود. اینترنت یا فیلترشکن را بررسی کن و دکمه «به‌روزرسانی» را بزن. اعداد ساختگی نشان داده نمی‌شوند.";
+    :"دریافت تقویم ممکن نشد و داده‌ای نمایش داده نمی‌شود. اینترنت یا فیلترشکن را بررسی کن و دکمه «به‌روزرسانی» را بزن. اعداد ساختگی نشان داده نمی‌شوند.";
 }
 function trend(it){
   var f=pnum(it.fc),p=pnum(it.pv);
@@ -477,7 +511,7 @@ function renderList(){
       html+='<div class="day"><h2>'+dayFa(it.ts)+(k===today?' <span class="today">امروز</span>':'')+' <small class="num">'+dayEn(it.ts)+'</small></h2>';
       lastDay=k;
     }
-    var past=it.ts.getTime()<now-3600e3;
+    var past=it.ts.getTime()<now;
     var op=S.openId===it.id;
     html+='<div class="evw"><button type="button" class="ev '+it.impact+(past?' past':'')+(op?' open':'')+'" data-id="'+it.id+'" aria-expanded="'+op+'">'+
       '<span class="t"><b class="num">'+timeFa(it.ts)+'</b><span class="cur">'+esc(it.cur)+'</span></span>'+
@@ -488,15 +522,29 @@ function renderList(){
   $("#list").innerHTML=html+"</div>";
 }
 function renderNext(){
-  var now=Date.now(),b=$("#next"),up=S.items.filter(function(i){return i.ts.getTime()>now});
+  var now=Date.now(),b=$("#next"),up=alive().filter(function(i){return i.cur==="USD"&&i.ts.getTime()>now});
   var pick=up.filter(function(i){return i.impact==="High"})[0]||up[0];
   if(!pick){b.hidden=true;return}
   var m=Math.max(0,Math.round((pick.ts.getTime()-now)/60000)),d=Math.floor(m/1440),h=Math.floor(m%1440/60),mm=m%60;
   var cd=(d?fa(d)+" روز و ":"")+(h||d?fa(h)+" ساعت و ":"")+fa(mm)+" دقیقه";
   b.hidden=false;b.setAttribute("data-id",pick.id);
-  b.innerHTML='<span><small>رویداد بعدی '+(pick.impact==="High"?"پرتاثیر":"")+'</small><b>'+esc(title(pick))+' ('+esc(pick.cur)+')</b></span><span class="cd">'+cd+' دیگر</span>';
+  b.innerHTML='<span><small>رویداد بعدی دلار'+(pick.impact==="High"?" (پرتاثیر)":"")+'</small><b>'+esc(title(pick))+' ('+esc(pick.cur)+')</b></span><span class="cd">'+cd+' دیگر</span>';
 }
-function renderAll(){renderFilters();renderStatus();renderNext();renderList();}
+function renderNews(){
+  var box=$("#news"),now=Date.now();
+  var list=(S.news||[]).map(function(n){return {t:new Date(n.ts).getTime(),n:n}}).filter(function(o){
+    return o.t&&now-o.t<48*3600e3&&o.t<=now+3600e3;
+  }).sort(function(a,b){return b.t-a.t}).slice(0,6);
+  if(!list.length){box.hidden=true;box.innerHTML="";return}
+  box.hidden=false;
+  box.innerHTML='<h2>اخبار مهم دلار خارج از تقویم</h2><p class="fine">فقط اطلاعیه‌های رسمی بسیار مهم در ۴۸ ساعت اخیر. ممکن است در Forex Factory نباشند.</p><ul>'+
+    list.map(function(o){
+      var d=new Date(o.t);
+      return '<li><span class="nt num">'+dayFa(d)+'، '+timeFa(d)+'</span><span class="nh" dir="ltr" lang="en">'+esc(o.n.title)+'</span>'+
+        (o.n.link&&/^https:\/\//.test(o.n.link)?'<a href="'+esc(o.n.link)+'" target="_blank" rel="noopener">'+esc(o.n.src||"منبع")+' ↗</a>':'<span class="fine">'+esc(o.n.src||"")+'</span>')+'</li>';
+    }).join("")+'</ul>';
+}
+function renderAll(){renderFilters();renderStatus();renderNext();renderNews();renderList();}
 
 /* ---------- sheet ---------- */
 function scenarioLabels(c){
