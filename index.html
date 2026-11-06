@@ -503,7 +503,9 @@ function trend(it){
 }
 function renderList(){
   var v=visible(),now=Date.now(),today=dayKey(new Date()),html="",lastDay="";
-  if(!v.length){$("#list").innerHTML='<div class="empty">'+(S.src==="error"?"داده‌ای برای نمایش نیست.":"رویدادی با این فیلتر پیدا نشد.")+'</div>';return}
+  if(!v.length){
+    var noNext=S.src!=="error"&&S.wk==="next"&&!alive().some(function(i){return i.wk==="next"});
+    $("#list").innerHTML='<div class="empty">'+(S.src==="error"?"داده‌ای برای نمایش نیست.":noNext?"اخبار هفته بعد هنوز منتشر یا دریافت نشده. چند ساعت بعد دوباره امتحان کن.":"رویدادی با این فیلتر پیدا نشد.")+'</div>';return}
   v.forEach(function(it){
     var k=dayKey(it.ts);
     if(k!==lastDay){
