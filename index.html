@@ -522,13 +522,13 @@ function renderList(){
   $("#list").innerHTML=html+"</div>";
 }
 function renderNext(){
-  var now=Date.now(),b=$("#next"),up=alive().filter(function(i){return i.cur==="USD"&&i.ts.getTime()>now});
+  var now=Date.now(),b=$("#next"),up=alive().filter(function(i){return (i.cur==="USD"||i.cur==="EUR"||i.cur==="GBP")&&i.ts.getTime()>now});
   var pick=up.filter(function(i){return i.impact==="High"})[0]||up[0];
   if(!pick){b.hidden=true;return}
   var m=Math.max(0,Math.round((pick.ts.getTime()-now)/60000)),d=Math.floor(m/1440),h=Math.floor(m%1440/60),mm=m%60;
   var cd=(d?fa(d)+" روز و ":"")+(h||d?fa(h)+" ساعت و ":"")+fa(mm)+" دقیقه";
   b.hidden=false;b.setAttribute("data-id",pick.id);
-  b.innerHTML='<span><small>رویداد بعدی دلار'+(pick.impact==="High"?" (پرتاثیر)":"")+'</small><b>'+esc(title(pick))+' ('+esc(pick.cur)+')</b></span><span class="cd">'+cd+' دیگر</span>';
+  b.innerHTML='<span><small>رویداد بعدی (دلار، یورو، پوند)'+(pick.impact==="High"?" (پرتاثیر)":"")+'</small><b>'+esc(title(pick))+' ('+esc(pick.cur)+')</b></span><span class="cd">'+cd+' دیگر</span>';
 }
 function renderNews(){
   var box=$("#news"),now=Date.now();
