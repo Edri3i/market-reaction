@@ -1,0 +1,78 @@
+name: Update calendar
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download calendar and news
+        run: |
+          UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
+          get() { curl -fsS --retry 3 --retry-delay 5 -A "$UA" "$1" -o "$2"; }
+          get https://nfs.faireconomy.media/ff_calendar_thisweek.json this.json || { echo "this week failed"; exit 0; }
+          get https://nfs.faireconomy.media/ff_calendar_nextweek.json next.json || echo "[]" > next.json
+          python3 - <<'PY'
+          import json, re, datetime, urllib.request
+          import xml.etree.ElementTree as ET
+          from email.utils import parsedate_to_datetime
+
+          UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
+          this = json.load(open("this.json"))
+          try:
+              nxt = json.load(open("next.json"))
+          except Exception:
+              nxt = []
+          if not isinstance(this, list) or not this:
+              raise SystemExit("empty this week")
+
+          # very important USD news: official Federal Reserve releases
+          KEY = re.compile(r"FOMC|federal funds|monetary policy|interest rate|discount rate|emergency|swap line|Chair", re.I)
+          FEEDS = [
+              ("https://www.federalreserve.gov/feeds/press_monetary.xml", True),
+              ("https://www.federalreserve.gov/feeds/press_all.xml", False),
+          ]
+          news, ok = [], False
+          for url, always in FEEDS:
+              try:
+                  req = urllib.request.Request(url, headers={"User-Agent": UA})
+                  root = ET.fromstring(urllib.request.urlopen(req, timeout=30).read())
+                  ok = True
+                  for it in root.iter("item"):
+                      title = (it.findtext("title") or "").strip()
+                      if not title or (not always and not KEY.search(title)):
+                          continue
+                      d = parsedate_to_datetime(it.findtext("pubDate")).astimezone(datetime.timezone.utc)
+                      news.append({"title": title, "link": (it.findtext("link") or "").strip(),
+                                   "ts": d.strftime("%Y-%m-%dT%H:%M:%SZ"), "src": "Federal Reserve"})
+              except Exception as e:
+                  print("news feed failed", url, e)
+          if not ok:
+              try:
+                  news = json.load(open("calendar.json")).get("news", [])
+              except Exception:
+                  news = []
+          seen, uniq = set(), []
+          for n in sorted(news, key=lambda x: x["ts"], reverse=True):
+              if n["link"] in seen:
+                  continue
+              seen.add(n["link"])
+              uniq.append(n)
+          out = {"updated": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                 "thisweek": this, "nextweek": nxt if isinstance(nxt, list) else [], "news": uniq[:10]}
+          json.dump(out, open("calendar.json", "w"), ensure_ascii=False)
+          PY
+          rm -f this.json next.json
+      - name: Commit
+        run: |
+          git config user.name "calendar-bot"
+          git config user.email "calendar-bot@users.noreply.github.com"
+          git add calendar.json
+          git diff --cached --quiet || (git commit -m "update calendar" && git push)
