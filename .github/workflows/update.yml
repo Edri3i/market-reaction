@@ -16,9 +16,10 @@ jobs:
       - name: Download calendar and news
         run: |
           UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
-          get() { curl -fsS --retry 3 --retry-delay 5 -A "$UA" "$1" -o "$2"; }
+          get() { curl -fsS --retry 4 --retry-all-errors --retry-delay 30 -A "$UA" "$1" -o "$2"; }
           get https://nfs.faireconomy.media/ff_calendar_thisweek.json this.json || { echo "this week failed"; exit 0; }
-          get https://nfs.faireconomy.media/ff_calendar_nextweek.json next.json || echo "[]" > next.json
+          sleep 15
+          get https://nfs.faireconomy.media/ff_calendar_nextweek.json next.json || { echo "next week failed"; echo "[]" > next.json; }
           python3 - <<'PY'
           import json, re, datetime, urllib.request
           import xml.etree.ElementTree as ET
@@ -32,6 +33,14 @@ jobs:
               nxt = []
           if not isinstance(this, list) or not this:
               raise SystemExit("empty this week")
+          # if next week could not be downloaded, keep the previous copy of the same week
+          if not (isinstance(nxt, list) and nxt):
+              try:
+                  prev = json.load(open("calendar.json"))
+                  if prev.get("nextweek") and prev["thisweek"][0].get("date") == this[0].get("date"):
+                      nxt = prev["nextweek"]
+              except Exception:
+                  pass
 
           # very important USD news: official Federal Reserve releases
           KEY = re.compile(r"FOMC|federal funds|monetary policy|interest rate|discount rate|emergency|swap line|Chair", re.I)
