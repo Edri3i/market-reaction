@@ -1,0 +1,48 @@
+name: Telegram bot
+
+on:
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_run:
+    workflows: ["Update calendar"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "daily = send today's news now, check = look for changes"
+        type: choice
+        default: daily
+        options:
+          - daily
+          - check
+
+permissions:
+  contents: write
+
+concurrency:
+  group: telegram-bot
+
+jobs:
+  run:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install playwright
+        run: pip install playwright
+      - name: Run bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_MODE: ${{ github.event.inputs.mode }}
+        run: python telegram_bot.py
+      - name: Save state
+        run: |
+          git config user.name "calendar-bot"
+          git config user.email "calendar-bot@users.noreply.github.com"
+          git add telegram_state.json
+          git diff --cached --quiet || (git commit -m "telegram state" && git pull --rebase && git push)
